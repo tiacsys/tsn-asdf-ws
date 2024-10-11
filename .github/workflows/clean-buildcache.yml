@@ -1,0 +1,14 @@
+name: Clean Buildcache
+
+on:
+  workflow_dispatch: # Manually on button click
+
+jobs:
+  setup:
+    name: Setup
+
+    # Delete the "buildcache-*" tagged Docker images on demand.
+    uses: tiacsys/github-workflows/.github/workflows/docker-mr-proper.yml@v1
+    with:
+      delete-tags: buildcache-*
+    secrets: inherit # pass all secrets
