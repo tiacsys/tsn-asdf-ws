@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+#
 # TiaC Systems Network - ASDF Workspace
 #
 #  -- derived from official Ubuntu Docker image
@@ -26,7 +28,7 @@ FROM ubuntu:noble-20240904.1 AS base
 
 # overwrite Ubuntu default metadata
 LABEL mantainer="Stephan Linz <stephan.linz@tiac-systems.de>"
-LABEL version="2024.10.0"
+LABEL version="unstable"
 
 # ############################################################################
 
@@ -39,6 +41,86 @@ ARG WSUSER_GID=205
 # ############################################################################
 
 SHELL ["/bin/sh", "-ex", "-c"]
+
+# ############################################################################
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBCONF_NONINTERACTIVE_SEEN=true
+ENV LANG=C.UTF-8
+
+# ############################################################################
+
+# switch to superuser
+USER root
+WORKDIR /
+
+# ############################################################################
+
+# create workspace user with their UID and GID
+RUN groupadd --gid $WSUSER_GID $WSUSER_NAME
+RUN useradd -m --uid $WSUSER_UID --gid $WSUSER_GID $WSUSER_NAME
+
+# ############################################################################
+
+# System dependencies
+RUN apt-get --assume-yes update
+RUN apt-get --assume-yes dist-upgrade
+RUN apt-get --assume-yes install --no-install-recommends \
+    apt-utils \
+    bash \
+    bash-completion \
+    software-properties-common \
+    vim
+RUN apt-get --assume-yes autoremove --purge
+RUN apt-get clean
+
+# ############################################################################
+
+# make /bin/sh symlink to bash instead of dash:
+RUN echo "dash dash/sh boolean false" | debconf-set-selections
+RUN dpkg-reconfigure --frontend=readline --priority=critical dash
+
+# HOTFIX: The construct above has no effect, do it manually!
+RUN ln -sf bash /bin/sh
+
+SHELL ["/bin/sh", "-exo", "pipefail", "-c"]
+
+# ############################################################################
+
+# Localization dependencies
+RUN apt-get --assume-yes install --no-install-recommends \
+      locales
+
+# Setup locales for German
+RUN locale-gen de_DE.UTF-8
+RUN update-locale LANG=de_DE.UTF-8
+ENV LANG=de_DE.UTF-8
+RUN locale -a
+
+# Setup locales for English
+RUN locale-gen en_US.UTF-8
+RUN update-locale LANG=en_US.UTF-8
+ENV LANG=en_US.UTF-8
+RUN locale -a
+
+# ############################################################################
+
+# Set executable for main entry point
+CMD ["/bin/bash"]
+
+# ############################################################################
+
+# switch to workspace user
+USER $WSUSER_NAME
+WORKDIR $WSUSER_HOME
+
+# ############################################################################
+#
+# All architectures maintenance for ASDF and ASDF Plugin Manager
+#
+# ############################################################################
+
+FROM base AS asdf-all
 
 # ############################################################################
 
@@ -62,35 +144,14 @@ ENV TSN_ASDF_PM_VERSION=1.4.0
 
 # ############################################################################
 
-ENV DEBIAN_FRONTEND=noninteractive
-ENV DEBCONF_NONINTERACTIVE_SEEN=true
-ENV LANG=C.UTF-8
-
+# switch to superuser
 USER root
 WORKDIR /
 
 # ############################################################################
 
-# create workspace user with their UID and GID
-RUN groupadd --gid $WSUSER_GID $WSUSER_NAME
-RUN useradd -m --uid $WSUSER_UID --gid $WSUSER_GID $WSUSER_NAME
-
-# ############################################################################
-
-# System dependencies
-RUN apt-get --assume-yes update
-RUN apt-get --assume-yes dist-upgrade
-RUN apt-get --assume-yes install --no-install-recommends \
-    apt-utils \
-    software-properties-common \
-    vim
-RUN apt-get --assume-yes autoremove --purge
-RUN apt-get clean
-
 # Install requirements
 RUN apt-get --assume-yes install --no-install-recommends \
-    bash \
-    bash-completion \
     bsdmainutils \
     coreutils \
     curl \
@@ -102,32 +163,9 @@ RUN apt-get clean
 
 # ############################################################################
 
-# Localization dependencies
-RUN apt-get --assume-yes install --no-install-recommends \
-      locales
-
-# Setup locales for German
-RUN locale-gen de_DE.UTF-8
-RUN update-locale LANG=de_DE.UTF-8
-ENV LANG=de_DE.UTF-8
-RUN locale -a
-
-# Setup locales for English
-RUN locale-gen en_US.UTF-8
-RUN update-locale LANG=en_US.UTF-8
-ENV LANG=en_US.UTF-8
-RUN locale -a
-
-# ############################################################################
-
-# make /bin/sh symlink to bash instead of dash:
-RUN echo "dash dash/sh boolean false" | debconf-set-selections
-RUN dpkg-reconfigure --frontend=readline --priority=critical dash
-
-# HOTFIX: The construct above has no effect, do it manually!
-RUN ln -sf bash /bin/sh
-
-SHELL ["/bin/sh", "-exo", "pipefail", "-c"]
+# switch to workspace user
+USER $WSUSER_NAME
+WORKDIR $WSUSER_HOME
 
 # ############################################################################
 
@@ -135,9 +173,6 @@ SHELL ["/bin/sh", "-exo", "pipefail", "-c"]
 # Manage multiple runtime versions with the
 # ASDF version manager in workspace user space.
 #
-
-USER $WSUSER_NAME
-WORKDIR $WSUSER_HOME
 
 # Install ASDF
 RUN git clone https://github.com/asdf-vm/asdf.git ~/.asdf --depth 1 --branch $TSN_ASDF_BRANCH
@@ -182,65 +217,74 @@ RUN asdf-plugin-manager export > $WSUSER_HOME/.plugin-versions
 
 # ############################################################################
 #
-# AMD/x86 64-bit architecture maintenance
+# AMD/x86 64-bit architecture maintenance for ASDF and ASDF Plugin Manager
 #
 # ############################################################################
 
-FROM base AS build-amd64
+FROM asdf-all AS asdf-amd64
 
 # ############################################################################
 #
-# ARMv7 32-bit architecture maintenance
+# ARMv7 32-bit architecture maintenance for ASDF and ASDF Plugin Manager
 #
 # ############################################################################
 
-FROM base AS build-arm
+FROM asdf-all AS asdf-arm
 
 # ############################################################################
 #
-# ARMv8 64-bit architecture maintenance
+# ARMv8 64-bit architecture maintenance for ASDF and ASDF Plugin Manager
 #
 # ############################################################################
 
-FROM base AS build-arm64
+FROM asdf-all AS asdf-arm64
 
 # ############################################################################
 #
-# RISC-V 64-bit architecture maintenance
+# RISC-V 64-bit architecture maintenance for ASDF and ASDF Plugin Manager
 #
 # ############################################################################
 
-FROM base AS build-riscv64
+FROM asdf-all AS asdf-riscv64
 
 # ############################################################################
 #
-# IBM POWER8 architecture maintenance
+# IBM POWER8 architecture maintenance for ASDF and ASDF Plugin Manager
 #
 # ############################################################################
 
-FROM base AS build-ppc64le
+FROM asdf-all AS asdf-ppc64le
 
 # ############################################################################
 #
-# IBM z-Systems architecture maintenance
+# IBM z-Systems architecture maintenance for ASDF and ASDF Plugin Manager
 #
 # ############################################################################
 
-FROM base AS build-s390x
+FROM asdf-all AS asdf-s390x
 
 # ############################################################################
 #
-# All architectures maintenance
+# Final maintenance for ASDF and ASDF Plugin Manager
 #
 # ############################################################################
 
-FROM build-${TARGETARCH} AS build
+FROM asdf-${TARGETARCH} AS asdf
+
+# ############################################################################
+
+#
+# ASDF runtime version
+#
 
 RUN asdf version
 RUN asdf list
 
+# ############################################################################
+
+#
+# ASDF Plugin Manager runtime version
+#
+
 RUN asdf-plugin-manager version
 RUN asdf-plugin-manager list
-
-# Set executable for main entry point
-CMD ["/bin/bash"]
