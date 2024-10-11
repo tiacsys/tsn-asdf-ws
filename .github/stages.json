@@ -1,0 +1,7 @@
+{
+	"include": [
+		{ "stage": "base" },
+		{ "stage": "asdf" },
+		{ "stage": "push", "ghr-free-disk": false }
+	]
+}
