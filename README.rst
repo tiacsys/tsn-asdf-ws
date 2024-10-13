@@ -9,7 +9,7 @@ Documentation
 -------------
 
 The documentation overview is in this `readme in the project root directory
-<README.md>`_.
+<README.rst>`_.
 
 Content
 -------
