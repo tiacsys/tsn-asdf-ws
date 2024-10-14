@@ -56,63 +56,50 @@ WORKDIR /
 
 # ############################################################################
 
-# create workspace user with their UID and GID
-RUN groupadd --gid $WSUSER_GID $WSUSER_NAME
-RUN useradd -m --uid $WSUSER_UID --gid $WSUSER_GID $WSUSER_NAME
-
-# ############################################################################
-
-# System dependencies
-RUN apt-get --assume-yes update
-RUN apt-get --assume-yes dist-upgrade
-RUN apt-get --assume-yes install --no-install-recommends \
+# Install requirements
+RUN apt-get --assume-yes update \
+ && apt-get --assume-yes dist-upgrade \
+ && apt-get --assume-yes install --no-install-recommends \
     apt-utils \
     bash \
     bash-completion \
+    locales \
     software-properties-common \
-    vim
-RUN apt-get --assume-yes autoremove --purge
-RUN apt-get clean
+    vim \
+ && apt-get --assume-yes autoremove --purge \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # ############################################################################
 
-# make /bin/sh symlink to bash instead of dash:
-RUN echo "dash dash/sh boolean false" | debconf-set-selections
-RUN dpkg-reconfigure --frontend=readline --priority=critical dash
+#
+# System setups
+#
+# - setup locales for English
+# - create workspace user with their UID and GID
+# - make /bin/sh symlink to bash instead of dash
+#   HOTFIX: dpkg-reconfigure has no effect, do it manually!
+#
 
-# HOTFIX: The construct above has no effect, do it manually!
-RUN ln -sf bash /bin/sh
+ENV LANG=en_US.UTF-8
+
+RUN locale-gen en_US.UTF-8 \
+ && update-locale LANG=en_US.UTF-8 \
+ && locale -a \
+    \
+ && groupadd --gid $WSUSER_GID $WSUSER_NAME \
+ && useradd -m --uid $WSUSER_UID --gid $WSUSER_GID $WSUSER_NAME \
+    \
+ && (echo "dash dash/sh boolean false" | debconf-set-selections) \
+ && dpkg-reconfigure --frontend=readline --priority=critical dash \
+ && ln -sf bash /bin/sh
 
 SHELL ["/bin/sh", "-exo", "pipefail", "-c"]
 
 # ############################################################################
 
-# Localization dependencies
-RUN apt-get --assume-yes install --no-install-recommends \
-      locales
-
-# Setup locales for German
-RUN locale-gen de_DE.UTF-8
-RUN update-locale LANG=de_DE.UTF-8
-ENV LANG=de_DE.UTF-8
-RUN locale -a
-
-# Setup locales for English
-RUN locale-gen en_US.UTF-8
-RUN update-locale LANG=en_US.UTF-8
-ENV LANG=en_US.UTF-8
-RUN locale -a
-
-# ############################################################################
-
 # Set executable for main entry point
 CMD ["/bin/bash"]
-
-# ############################################################################
-
-# switch to workspace user
-USER $WSUSER_NAME
-WORKDIR $WSUSER_HOME
 
 # ############################################################################
 #
@@ -144,22 +131,18 @@ ENV TSN_ASDF_PM_VERSION=1.4.0
 
 # ############################################################################
 
-# switch to superuser
-USER root
-WORKDIR /
-
-# ############################################################################
-
 # Install requirements
-RUN apt-get --assume-yes install --no-install-recommends \
+RUN apt-get --assume-yes update \
+ && apt-get --assume-yes install --no-install-recommends \
     bsdmainutils \
     coreutils \
     curl \
     git-core \
     grep \
-    sed
-RUN apt-get --assume-yes autoremove --purge
-RUN apt-get clean
+    sed \
+ && apt-get --assume-yes autoremove --purge \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # ############################################################################
 
@@ -172,26 +155,27 @@ WORKDIR $WSUSER_HOME
 #
 # Manage multiple runtime versions with the
 # ASDF version manager in workspace user space.
+# https://github.com/asdf-vm/asdf
 #
-
-# Install ASDF
-RUN git clone https://github.com/asdf-vm/asdf.git ~/.asdf --depth 1 --branch $TSN_ASDF_BRANCH
-RUN echo ". ~/.asdf/asdf.sh" >> $WSUSER_HOME/.bashrc
-RUN echo ". ~/.asdf/completions/asdf.bash" >> $WSUSER_HOME/.bashrc
 
 # Activate ASDF in current session
 ENV PATH=$WSUSER_HOME/.asdf/shims:$WSUSER_HOME/.asdf/bin:$PATH
 
-# Install ASDF plugins
-RUN asdf plugin add asdf-plugin-manager https://github.com/asdf-community/asdf-plugin-manager.git
+# Install and upgrade ASDF with basic plugins
+RUN git clone https://github.com/asdf-vm/asdf.git ~/.asdf \
+              --depth 1 --branch $TSN_ASDF_BRANCH \
+ && echo ". ~/.asdf/asdf.sh" >> $WSUSER_HOME/.bashrc \
+ && echo ". ~/.asdf/completions/asdf.bash" >> $WSUSER_HOME/.bashrc \
+    \
+ && asdf update \
+ && asdf plugin update --all \
+    \
+ && asdf plugin add \
+         asdf-plugin-manager \
+         https://github.com/asdf-community/asdf-plugin-manager.git
 
 # Adding labels for external usage
 LABEL asdf.branch=$TSN_ASDF_BRANCH
-
-# Upgrade ASDF version manager
-# https://github.com/asdf-vm/asdf
-RUN asdf update
-RUN asdf plugin update --all
 
 # ############################################################################
 
@@ -199,21 +183,19 @@ RUN asdf plugin update --all
 # ASDF Plugin Manager runtime version
 #
 
-# Install ASDF Plugin Manager
-RUN asdf install asdf-plugin-manager $TSN_ASDF_PM_VERSION && \
-    asdf global  asdf-plugin-manager $TSN_ASDF_PM_VERSION && \
-    asdf reshim  asdf-plugin-manager
+# Install ASDF Plugin Manager, set default version and export plugin list
+RUN asdf install asdf-plugin-manager $TSN_ASDF_PM_VERSION \
+ && asdf global  asdf-plugin-manager $TSN_ASDF_PM_VERSION \
+ && asdf reshim  asdf-plugin-manager \
+    \
+ && asdf local asdf-plugin-manager $TSN_ASDF_PM_VERSION \
+ && asdf list  asdf-plugin-manager \
+    \
+ && touch $WSUSER_HOME/.plugin-versions \
+ && asdf-plugin-manager export > $WSUSER_HOME/.plugin-versions
 
 # Adding labels for external usage
 LABEL asdf-plugin-manager.version=$TSN_ASDF_PM_VERSION
-
-# Set default ASDF Plugin Manager version
-RUN asdf local asdf-plugin-manager $TSN_ASDF_PM_VERSION
-RUN asdf list  asdf-plugin-manager
-
-# Export initial list of ASDF plugins
-RUN touch $WSUSER_HOME/.plugin-versions
-RUN asdf-plugin-manager export > $WSUSER_HOME/.plugin-versions
 
 # ############################################################################
 #
@@ -270,21 +252,3 @@ FROM asdf-all AS asdf-s390x
 # ############################################################################
 
 FROM asdf-${TARGETARCH} AS asdf
-
-# ############################################################################
-
-#
-# ASDF runtime version
-#
-
-RUN asdf version
-RUN asdf list
-
-# ############################################################################
-
-#
-# ASDF Plugin Manager runtime version
-#
-
-RUN asdf-plugin-manager version
-RUN asdf-plugin-manager list
