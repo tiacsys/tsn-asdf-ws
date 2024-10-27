@@ -9,7 +9,7 @@ Documentation
 -------------
 
 The documentation overview is in this `readme in the project root directory
-<README.md>`_.
+<README.rst>`_.
 
 Content
 -------
@@ -64,7 +64,7 @@ References
 .. _`Ubuntu official Docker image`: https://github.com/docker-library/official-images
 .. |ubuntu-release| replace:: Ubuntu :strong:`24.04.1 LTS`
 .. _`ubuntu-release`: https://hub.docker.com/_/ubuntu
-.. |ubuntu-docker-tag| replace:: :strong:`ubuntu:noble-20240904.1`
+.. |ubuntu-docker-tag| replace:: :strong:`ubuntu:noble-20241011`
 
 .. |TSN-HOME| replace:: :code:`/home/tsn`
 .. |TSN-USER| replace:: :code:`tsn`

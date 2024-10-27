@@ -4,28 +4,12 @@ on:
   pull_request:
     types: [closed]
 
-env:
-  # Use docker.io for Docker Hub if empty
-  REGISTRY: ghcr.io
-  # github.repository as <account>/<repo>
-  IMAGE_NAME: ${{ github.repository }}
-
 jobs:
-  clean:
-    name: Clean up the registry
+  setup:
+    name: Setup
 
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      # Delete the "pr-#" tagged Docker images when a pull request is closed.
-      # https://github.com/dataaxiom/ghcr-cleanup-action
-      - name: Delete pr-tagged Docker images on registry ${{ env.REGISTRY }}
-        uses: dataaxiom/ghcr-cleanup-action@v1
-        with:
-          delete-tags: pr-${{github.event.pull_request.number}}
-          packages: ${{ github.event.repository.name }}
-          owner: ${{ github.repository_owner }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+    # Delete the "pr-#" tagged Docker images when a pull request is closed.
+    uses: tiacsys/github-workflows/.github/workflows/docker-mr-proper.yml@v1
+    with:
+      delete-tags: pr-${{github.event.pull_request.number}}
+    secrets: inherit # pass all secrets

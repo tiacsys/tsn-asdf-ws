@@ -1,0 +1,15 @@
+name: Retry Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      runid:
+        required: true
+
+jobs:
+  fail:
+    name: Fail
+
+    uses: tiacsys/github-workflows/.github/workflows/retry-workflow.yml@v1
+    with:
+      runid: ${{ inputs.runid }}
