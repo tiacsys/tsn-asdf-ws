@@ -40,7 +40,7 @@
 #                                                                     ┗┛┗┛┗┛
 # ############################################################################
 
-FROM ubuntu:noble-20240904.1 AS base
+FROM ubuntu:noble-20241011 AS base
 
 # overwrite Ubuntu default metadata
 LABEL mantainer="Stephan Linz <stephan.linz@tiac-systems.de>"
